@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+sqlalchemy>=2.0
+pymysql>=1.1
+cryptography>=42
+chromadb>=0.5
+ollama>=0.4
+pypdf>=4.0
+faster-whisper>=1.0

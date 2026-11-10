@@ -1,0 +1,599 @@
+<!doctype html>
+<html lang="en" class="h-full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>J.A.R.V.I.S.</title>
+<script src="https://cdn.tailwindcss.com/3.4.5"></script>
+<script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Orbitron:wght@500;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<script>
+  tailwind.config = {
+    theme: { extend: {
+      fontFamily: { sans: ['Inter','system-ui','sans-serif'], hud: ['Orbitron','sans-serif'], mono: ['JetBrains Mono','monospace'] },
+      colors: { ink: { 950:'#03070d', 900:'#060d17', 850:'#0a1422', 800:'#0e1b2d', 700:'#16273e' }, arc: { 300:'#7df3ff', 400:'#38e1ff', 500:'#00c2ff', 600:'#0095d6' } }
+    } }
+  }
+</script>
+<style>
+  :root { --arc: 56,225,255; --level: 0; }
+  body { background: radial-gradient(1200px 700px at 60% -10%, #0b2238 0%, #03070d 60%) fixed, #03070d; }
+  .grid-bg { background-image: linear-gradient(rgba(56,225,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(56,225,255,.04) 1px, transparent 1px); background-size: 40px 40px; }
+  .glass { background: rgba(10,20,34,.65); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+  ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-thumb { background: #16273e; border-radius: 8px; } ::-webkit-scrollbar-track { background: transparent; }
+
+  /* ---------------- Orb ---------------- */
+  .orb { position: relative; width: 150px; height: 150px; cursor: pointer; transition: transform .3s; }
+  .orb:hover { transform: scale(1.03); }
+  .orb > * { position: absolute; inset: 0; border-radius: 9999px; }
+  .orb .glow { inset: -30px; background: radial-gradient(circle, rgba(var(--arc),.35) 0%, rgba(var(--arc),0) 65%); filter: blur(6px); animation: breathe 4s ease-in-out infinite; }
+  .orb .ring1 { border: 2px dashed rgba(var(--arc),.45); animation: spin 22s linear infinite; }
+  .orb .ring2 { inset: 12px; border: 1px solid rgba(var(--arc),.35); border-top-color: rgba(var(--arc),1); border-bottom-color: rgba(var(--arc),1); animation: spin 7s linear infinite reverse; }
+  .orb .ring3 { inset: 24px; border: 3px solid transparent; border-left-color: rgba(var(--arc),.8); border-right-color: rgba(var(--arc),.25); animation: spin 4s linear infinite; }
+  .orb .core { inset: 40px; background: radial-gradient(circle at 50% 45%, #fff 0%, rgba(var(--arc),1) 22%, rgba(var(--arc),.35) 55%, rgba(var(--arc),.05) 75%);
+               box-shadow: 0 0 30px rgba(var(--arc),.9), 0 0 80px rgba(var(--arc),.5), inset 0 0 20px rgba(255,255,255,.6);
+               transform: scale(calc(1 + var(--level) * .22)); transition: transform .08s linear, box-shadow .3s; animation: corepulse 3.2s ease-in-out infinite; }
+  .orb .wave { inset: 40px; border: 2px solid rgba(var(--arc),.7); opacity: 0; }
+
+  .orb[data-state="listening"] { --arc: 255,72,96; }
+  .orb[data-state="listening"] .core { animation: corepulse .9s ease-in-out infinite, listencolor 1.8s ease-in-out infinite; }
+  .orb[data-state="listening"] .wave { animation: ripple 1.4s ease-out infinite; }
+  .orb[data-state="listening"] .wave.w2 { animation-delay: .7s; }
+  .orb[data-state="listening"] .ring1 { animation-duration: 8s; }
+
+  .orb[data-state="thinking"] { --arc: 255,190,70; }
+  .orb[data-state="thinking"] .ring2 { animation-duration: 1.1s; }
+  .orb[data-state="thinking"] .ring3 { animation-duration: .7s; }
+  .orb[data-state="thinking"] .core { animation: corepulse 1.2s ease-in-out infinite; }
+
+  .orb[data-state="speaking"] .ring2 { animation-duration: 2.5s; }
+  .orb[data-state="speaking"] .core { animation: none; }
+  .orb[data-state="speaking"] .wave { animation: ripple 1.1s ease-out infinite; }
+  .orb[data-state="speaking"] .wave.w2 { animation-delay: .55s; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes breathe { 0%,100% { opacity: .7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
+  @keyframes corepulse { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.35); } }
+  @keyframes ripple { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(2.3); } }
+  @keyframes listencolor { 0%,100% { box-shadow: 0 0 30px rgba(255,72,96,.9), 0 0 80px rgba(255,72,96,.5); } 50% { box-shadow: 0 0 30px rgba(56,225,255,.9), 0 0 90px rgba(56,225,255,.6); } }
+
+  /* ---------------- Chat content ---------------- */
+  .md p { margin: .35rem 0; } .md p:first-child { margin-top: 0; } .md p:last-child { margin-bottom: 0; }
+  .md ul { list-style: disc; padding-left: 1.25rem; margin: .4rem 0; } .md ol { list-style: decimal; padding-left: 1.25rem; margin: .4rem 0; }
+  .md code { font-family: 'JetBrains Mono', monospace; font-size: .85em; background: rgba(56,225,255,.08); color: #9eeeff; padding: .1rem .35rem; border-radius: .3rem; }
+  .md pre { background: #050b14; border: 1px solid #16273e; border-radius: .6rem; padding: .75rem; overflow-x: auto; margin: .5rem 0; }
+  .md pre code { background: none; padding: 0; color: #cfe9ff; }
+  .md a { color: #38e1ff; text-decoration: underline; } .md strong { color: #fff; }
+  .md h1,.md h2,.md h3 { font-weight: 600; color: #fff; margin: .5rem 0 .25rem; }
+  details > summary { list-style: none; } details > summary::-webkit-details-marker { display: none; }
+  details[open] .chev { transform: rotate(90deg); }
+  .typing span { width: 6px; height: 6px; border-radius: 9999px; background: #38e1ff; display: inline-block; animation: blink 1.2s infinite both; }
+  .typing span:nth-child(2) { animation-delay: .2s; } .typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes blink { 0%,80%,100% { opacity: .2; transform: translateY(0); } 40% { opacity: 1; transform: translateY(-3px); } }
+  .fade-in { animation: fadein .35s ease-out; } @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .dz-active { border-color: #38e1ff !important; background: rgba(56,225,255,.07) !important; }
+</style>
+</head>
+<body class="h-full text-slate-200 font-sans antialiased overflow-hidden">
+<div class="absolute inset-0 grid-bg pointer-events-none"></div>
+
+<div class="relative flex h-full">
+  <!-- ====================== Sidebar ====================== -->
+  <div id="scrim" class="fixed inset-0 bg-black/60 z-30 hidden lg:hidden"></div>
+  <aside id="sidebar" class="glass fixed lg:static inset-y-0 left-0 z-40 w-80 max-w-[85vw] border-r border-arc-400/10 flex flex-col -translate-x-full lg:translate-x-0 transition-transform duration-300">
+    <div class="px-5 pt-5 pb-4 border-b border-arc-400/10">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-lg bg-arc-400/10 border border-arc-400/30 grid place-items-center"><i data-lucide="cpu" class="w-5 h-5 text-arc-400"></i></div>
+          <div>
+            <div class="font-hud font-bold tracking-[.2em] text-arc-300 text-sm">J.A.R.V.I.S.</div>
+            <div class="text-[11px] text-slate-500">Local Voice + RAG System</div>
+          </div>
+        </div>
+        <button id="closeSidebar" class="lg:hidden p-1.5 rounded-md hover:bg-white/5 text-slate-400"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div id="status" class="mt-4 grid grid-cols-2 gap-1.5 text-[11px]"></div>
+    </div>
+
+    <div class="px-5 py-4 flex-1 overflow-y-auto">
+      <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2.5"><i data-lucide="database" class="w-3.5 h-3.5"></i> Knowledge Base</div>
+      <label id="dropzone" for="fileInput" class="block cursor-pointer rounded-xl border-2 border-dashed border-arc-400/25 bg-ink-850/50 hover:border-arc-400/50 hover:bg-arc-400/5 transition p-5 text-center">
+        <i data-lucide="upload-cloud" class="w-8 h-8 mx-auto text-arc-400/80"></i>
+        <div class="mt-2 text-sm text-slate-300">Drop files or <span class="text-arc-400">browse</span></div>
+        <div class="text-[11px] text-slate-500 mt-0.5">PDF · TXT · MD</div>
+        <input id="fileInput" type="file" class="hidden" multiple accept=".pdf,.txt,.md">
+      </label>
+      <div id="uploads" class="mt-3 space-y-1.5"></div>
+
+      <div class="flex items-center justify-between mt-5 mb-2">
+        <div class="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-slate-400"><i data-lucide="files" class="w-3.5 h-3.5"></i> Indexed Files</div>
+        <span id="docCount" class="text-[11px] text-slate-500"></span>
+      </div>
+      <ul id="docList" class="space-y-1.5"></ul>
+    </div>
+
+    <div class="p-4 border-t border-arc-400/10 space-y-2">
+      <button id="newChat" class="w-full flex items-center justify-center gap-2 text-sm py-2.5 rounded-lg border border-arc-400/25 text-arc-300 hover:bg-arc-400/10 transition"><i data-lucide="message-square-plus" class="w-4 h-4"></i> New conversation</button>
+      <button id="clearHistory" class="w-full flex items-center justify-center gap-2 text-sm py-2.5 rounded-lg border border-red-400/25 text-red-300 hover:bg-red-500/10 transition"><i data-lucide="trash-2" class="w-4 h-4"></i> Clear chat history</button>
+    </div>
+  </aside>
+
+  <!-- ====================== Main ====================== -->
+  <main class="flex-1 flex flex-col min-w-0">
+    <header class="relative flex flex-col items-center pt-5 pb-3 border-b border-arc-400/10">
+      <button id="openSidebar" class="lg:hidden absolute left-4 top-4 p-2 rounded-md hover:bg-white/5 text-slate-300"><i data-lucide="panel-left" class="w-5 h-5"></i></button>
+      <div id="orb" class="orb" data-state="idle" title="Click to talk">
+        <div class="glow"></div><div class="wave"></div><div class="wave w2"></div>
+        <div class="ring1"></div><div class="ring2"></div><div class="ring3"></div><div class="core"></div>
+      </div>
+      <div id="orbLabel" class="mt-3 font-hud text-[11px] tracking-[.35em] text-arc-300/80">ONLINE</div>
+    </header>
+
+    <section id="chat" class="flex-1 overflow-y-auto">
+      <div id="messages" class="max-w-3xl mx-auto px-4 py-6 space-y-5"></div>
+    </section>
+
+    <footer class="border-t border-arc-400/10 glass">
+      <div class="max-w-3xl mx-auto px-4 py-3">
+        <div class="flex items-center gap-2 mb-2 text-xs">
+          <button id="ttsToggle" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-600/50 text-slate-400 hover:text-slate-200 transition">
+            <i data-lucide="volume-x" class="w-3.5 h-3.5"></i><span>Voice Output (TTS): Off</span>
+          </button>
+          <button id="sttToggle" title="Switch speech-to-text engine" class="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-slate-600/50 text-slate-400 transition"></button>
+          <button id="stopSpeaking" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full border border-amber-400/40 text-amber-300 hover:bg-amber-400/10 transition">
+            <i data-lucide="square" class="w-3 h-3 fill-current"></i><span>Stop Speaking</span>
+          </button>
+          <span id="voiceName" class="ml-auto text-slate-500 truncate"></span>
+        </div>
+        <form id="form" class="flex items-end gap-2 rounded-2xl border border-arc-400/20 bg-ink-900/80 p-2 focus-within:border-arc-400/50 transition">
+          <button type="button" id="micBtn" title="Voice input" class="shrink-0 w-10 h-10 grid place-items-center rounded-xl text-slate-300 hover:text-arc-300 hover:bg-arc-400/10 transition">
+            <i data-lucide="mic" class="w-5 h-5"></i>
+          </button>
+          <textarea id="input" rows="1" placeholder="Ask Jarvis anything, or press the mic…" class="flex-1 resize-none bg-transparent outline-none py-2 px-1 text-[15px] placeholder:text-slate-500 max-h-40"></textarea>
+          <button type="submit" id="sendBtn" class="shrink-0 w-10 h-10 grid place-items-center rounded-xl bg-arc-500 text-ink-950 hover:bg-arc-400 disabled:opacity-40 disabled:cursor-not-allowed transition">
+            <i data-lucide="send-horizontal" class="w-5 h-5"></i>
+          </button>
+        </form>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 hidden px-4 py-2.5 rounded-lg text-sm bg-red-500/90 text-white shadow-lg max-w-[90vw]"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const icons = () => lucide.createIcons();
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const store = { get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+                set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} } };
+
+let sessionId = store.get('jarvis_session', null);
+let busy = false;
+const flags = { listening: false, thinking: false, speaking: false };
+
+// ---------------------------------------------------------------- Orb state
+function updateOrb() {
+  const st = flags.listening ? 'listening' : flags.thinking ? 'thinking' : flags.speaking ? 'speaking' : 'idle';
+  $('#orb').dataset.state = st;
+  $('#orbLabel').textContent = { idle: 'ONLINE', listening: 'LISTENING', thinking: 'PROCESSING', speaking: 'SPEAKING' }[st];
+  $('#orbLabel').className = 'mt-3 font-hud text-[11px] tracking-[.35em] ' +
+    ({ idle: 'text-arc-300/80', listening: 'text-rose-300', thinking: 'text-amber-300', speaking: 'text-arc-300' }[st]);
+  if (st !== 'speaking') document.documentElement.style.setProperty('--level', 0);
+}
+function setFlag(k, v) { flags[k] = v; updateOrb(); }
+
+function toast(msg, ok = false) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.className = `fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-lg text-sm text-white shadow-lg max-w-[90vw] ${ok ? 'bg-emerald-600/90' : 'bg-red-500/90'}`;
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.add('hidden'), 4500);
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, opts);
+  let data = null; try { data = await r.json(); } catch {}
+  if (!r.ok) throw new Error(data?.detail || `${r.status} ${r.statusText}`);
+  return data;
+}
+
+// ---------------------------------------------------------------- Status
+async function loadStatus() {
+  try {
+    const s = await api('/status');
+    const pill = (ok, label) => `<div class="flex items-center gap-1.5 px-2 py-1 rounded-md bg-ink-850/70 border border-white/5">
+      <span class="w-1.5 h-1.5 rounded-full ${ok ? 'bg-emerald-400 shadow-[0_0_6px_#34d399]' : 'bg-red-400 shadow-[0_0_6px_#f87171]'}"></span>
+      <span class="truncate ${ok ? 'text-slate-300' : 'text-red-300'}">${esc(label)}</span></div>`;
+    $('#status').innerHTML = pill(s.ollama, 'Ollama') + pill(s.mysql, 'MySQL') +
+      pill(s.chat_model_ready, s.chat_model) + pill(s.embed_model_ready, s.embed_model) +
+      pill(s.whisper, 'Whisper ' + s.whisper_model);
+  } catch { $('#status').innerHTML = '<div class="col-span-2 text-red-300">Backend unreachable</div>'; }
+}
+
+// ---------------------------------------------------------------- Documents
+async function loadDocs() {
+  try {
+    const docs = await api('/documents');
+    $('#docCount').textContent = docs.length ? `${docs.length} file${docs.length > 1 ? 's' : ''}` : '';
+    $('#docList').innerHTML = docs.length ? docs.map(d => `
+      <li class="group flex items-center gap-2.5 px-3 py-2 rounded-lg bg-ink-850/60 border border-white/5 hover:border-arc-400/20 transition">
+        <i data-lucide="${d.filename.toLowerCase().endsWith('.pdf') ? 'file-text' : 'file'}" class="w-4 h-4 text-arc-400 shrink-0"></i>
+        <div class="min-w-0 flex-1"><div class="text-sm truncate" title="${esc(d.filename)}">${esc(d.filename)}</div>
+          <div class="text-[11px] text-slate-500">${d.chunks} chunks</div></div>
+        <button data-del="${esc(d.filename)}" title="Remove from index" class="opacity-0 group-hover:opacity-100 p-1 rounded text-slate-500 hover:text-red-300 transition"><i data-lucide="x" class="w-4 h-4"></i></button>
+      </li>`).join('') : '<li class="text-xs text-slate-500 px-1">No documents indexed yet.</li>';
+    icons();
+  } catch (e) { $('#docList').innerHTML = `<li class="text-xs text-red-300">${esc(e.message)}</li>`; }
+}
+$('#docList').addEventListener('click', async e => {
+  const b = e.target.closest('[data-del]'); if (!b) return;
+  if (!confirm(`Remove "${b.dataset.del}" from the knowledge base?`)) return;
+  await api('/documents/' + encodeURIComponent(b.dataset.del), { method: 'DELETE' }).catch(err => toast(err.message));
+  loadDocs();
+});
+
+async function uploadFiles(files) {
+  for (const f of files) {
+    const row = document.createElement('div');
+    row.className = 'flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-arc-400/5 border border-arc-400/15 fade-in';
+    row.innerHTML = `<i data-lucide="loader-2" class="w-3.5 h-3.5 animate-spin text-arc-400"></i><span class="truncate flex-1">Embedding ${esc(f.name)}…</span>`;
+    $('#uploads').prepend(row); icons();
+    const fd = new FormData(); fd.append('file', f);
+    try {
+      const r = await api('/upload', { method: 'POST', body: fd });
+      row.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-400"></i><span class="truncate flex-1">${esc(r.filename)} · ${r.chunks} chunks</span>`;
+      setTimeout(() => row.remove(), 3500);
+    } catch (e) {
+      row.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-red-400"></i><span class="flex-1 text-red-300">${esc(f.name)}: ${esc(e.message)}</span>`;
+      setTimeout(() => row.remove(), 9000);
+    }
+    icons(); loadDocs();
+  }
+  loadStatus();
+}
+const dz = $('#dropzone');
+['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('dz-active'); }));
+['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('dz-active'); }));
+dz.addEventListener('drop', e => uploadFiles([...e.dataTransfer.files]));
+$('#fileInput').addEventListener('change', e => { uploadFiles([...e.target.files]); e.target.value = ''; });
+
+// ---------------------------------------------------------------- Messages
+function renderMd(t) { return DOMPurify.sanitize(marked.parse(t || '', { breaks: true })); }
+
+function sourcesBlock(sources) {
+  if (!sources?.length) return '';
+  return `<details class="mt-2.5 group/src">
+    <summary class="inline-flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-medium px-2.5 py-1 rounded-full bg-arc-400/10 border border-arc-400/25 text-arc-300 hover:bg-arc-400/15 transition">
+      <i data-lucide="chevron-right" class="chev w-3 h-3 transition-transform"></i><i data-lucide="book-open" class="w-3 h-3"></i>
+      RAG Sources Used (${sources.length})</summary>
+    <div class="mt-2 space-y-1.5">${sources.map(s => `
+      <div class="rounded-lg border border-white/5 bg-ink-950/60 px-3 py-2">
+        <div class="flex items-center gap-2 text-[11px]">
+          <i data-lucide="file-text" class="w-3 h-3 text-arc-400"></i>
+          <span class="text-slate-200 font-medium truncate">${esc(s.source)}</span>
+          <span class="text-slate-500">chunk #${s.chunk}</span>
+          <span class="ml-auto font-mono text-emerald-300/80">${Math.round(s.score * 100)}% match</span>
+        </div>
+        <div class="mt-1 text-[12px] text-slate-400 leading-snug line-clamp-3">${esc(s.snippet)}</div>
+      </div>`).join('')}</div></details>`;
+}
+
+function addMessage(role, content, sources = [], animate = true) {
+  const wrap = document.createElement('div');
+  wrap.className = (animate ? 'fade-in ' : '') + (role === 'user' ? 'flex justify-end' : 'flex gap-3');
+  if (role === 'user') {
+    wrap.innerHTML = `<div class="max-w-[85%] rounded-2xl rounded-br-md bg-arc-500/15 border border-arc-400/20 px-4 py-2.5 text-[15px] whitespace-pre-wrap">${esc(content)}</div>`;
+  } else {
+    wrap.innerHTML = `<div class="shrink-0 w-8 h-8 rounded-full bg-arc-400/10 border border-arc-400/30 grid place-items-center shadow-[0_0_12px_rgba(56,225,255,.25)]"><i data-lucide="sparkles" class="w-4 h-4 text-arc-300"></i></div>
+      <div class="min-w-0 max-w-[88%]">
+        <div class="rounded-2xl rounded-tl-md bg-ink-850/80 border border-white/5 px-4 py-2.5 text-[15px] leading-relaxed md">${renderMd(content)}</div>
+        <div class="flex items-start gap-2 flex-wrap">
+          ${sourcesBlock(sources)}
+          <button class="replay mt-2.5 inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-arc-300 transition px-1.5 py-1" title="Read aloud"><i data-lucide="volume-2" class="w-3.5 h-3.5"></i></button>
+        </div>
+      </div>`;
+    wrap.querySelector('.replay').onclick = () => speak(content, true);
+  }
+  $('#messages').appendChild(wrap);
+  icons();
+  $('#chat').scrollTop = $('#chat').scrollHeight;
+  return wrap;
+}
+
+function showEmpty() {
+  $('#messages').innerHTML = `<div id="empty" class="text-center pt-10 text-slate-400 fade-in">
+    <div class="font-hud tracking-[.25em] text-arc-300 text-lg">GOOD DAY, SIR.</div>
+    <p class="mt-2 text-sm">Upload documents to the knowledge base, then ask me about them — by typing or by voice.</p>
+    <div class="mt-6 flex flex-wrap justify-center gap-2 text-xs">
+      ${['Summarize my documents', 'What can you do?', 'What are the key points in the latest file?'].map(q =>
+        `<button class="suggest px-3 py-1.5 rounded-full border border-arc-400/20 hover:bg-arc-400/10 text-slate-300 transition">${q}</button>`).join('')}
+    </div></div>`;
+  document.querySelectorAll('.suggest').forEach(b => b.onclick = () => send(b.textContent));
+}
+
+async function loadHistory() {
+  try {
+    const h = await api('/history' + (sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : ''));
+    $('#messages').innerHTML = '';
+    if (h.session_id) { sessionId = h.session_id; store.set('jarvis_session', sessionId); }
+    if (!h.messages.length) return showEmpty();
+    h.messages.forEach(m => addMessage(m.role, m.content, m.sources, false));
+  } catch (e) { showEmpty(); toast(e.message); }
+}
+
+async function send(text) {
+  text = (text ?? $('#input').value).trim();
+  if (!text || busy) return;
+  busy = true; $('#sendBtn').disabled = true;
+  $('#input').value = ''; autosize();
+  $('#empty')?.remove();
+  stopSpeaking();
+  addMessage('user', text);
+  const typing = document.createElement('div');
+  typing.className = 'flex gap-3 fade-in';
+  typing.innerHTML = `<div class="shrink-0 w-8 h-8 rounded-full bg-amber-400/10 border border-amber-400/30 grid place-items-center"><i data-lucide="brain-circuit" class="w-4 h-4 text-amber-300"></i></div>
+    <div class="rounded-2xl rounded-tl-md bg-ink-850/80 border border-white/5 px-4 py-3 typing flex gap-1.5 items-center"><span></span><span></span><span></span></div>`;
+  $('#messages').appendChild(typing); icons(); $('#chat').scrollTop = $('#chat').scrollHeight;
+  setFlag('thinking', true);
+  try {
+    const r = await api('/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, session_id: sessionId }) });
+    sessionId = r.session_id; store.set('jarvis_session', sessionId);
+    typing.remove();
+    addMessage('assistant', r.reply, r.sources);
+    setFlag('thinking', false);
+    if (ttsOn) speak(r.reply);
+  } catch (e) {
+    typing.remove(); setFlag('thinking', false);
+    addMessage('assistant', `⚠️ **System error:** ${e.message}`);
+  } finally { busy = false; $('#sendBtn').disabled = false; $('#input').focus(); }
+}
+
+const input = $('#input');
+function autosize() { input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 160) + 'px'; }
+input.addEventListener('input', autosize);
+input.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } });
+$('#form').addEventListener('submit', e => { e.preventDefault(); send(); });
+
+$('#newChat').onclick = () => { sessionId = null; store.set('jarvis_session', null); stopSpeaking(); showEmpty(); closeSidebar(); };
+$('#clearHistory').onclick = async () => {
+  if (!confirm('Delete ALL chat history from the database?')) return;
+  try { await api('/history', { method: 'DELETE' }); sessionId = null; store.set('jarvis_session', null); showEmpty(); toast('Chat history cleared.', true); }
+  catch (e) { toast(e.message); }
+};
+
+// ---------------------------------------------------------------- Voice input (STT)
+// Two engines:
+//   whisper — records the mic in the browser, transcribes locally on the server (offline, any modern browser)
+//   browser — Web Speech API (Chrome/Edge only, uses the browser vendor's cloud service)
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const canRecord = !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
+const SILENCE_MS = 1300;        // stop after this much silence once you've spoken
+const MAX_RECORD_MS = 30000;
+let sttEngine = store.get('jarvis_stt', canRecord ? 'whisper' : 'browser');
+let rec = null;                 // browser recognizer
+let stopListening = () => {};   // (cancel:boolean) => void, set by whichever engine is active
+const PLACEHOLDER = 'Ask Jarvis anything, or press the mic…';
+
+function renderSttToggle() {
+  const local = sttEngine === 'whisper';
+  const b = $('#sttToggle');
+  b.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition border-arc-400/50 text-arc-300 bg-arc-400/10 hover:bg-arc-400/15';
+  b.innerHTML = `<i data-lucide="${local ? 'hard-drive' : 'globe'}" class="w-3.5 h-3.5"></i><span>Voice In: ${local ? 'Local Whisper' : 'Browser'}</span>`;
+  const ok = local ? canRecord : !!SR;
+  $('#micBtn').classList.toggle('opacity-40', !ok);
+  $('#micBtn').title = ok ? 'Voice input (or click the orb)' : 'This voice engine is not supported in this browser';
+  icons();
+}
+$('#sttToggle').onclick = () => {
+  if (flags.listening) stopListening(true);
+  sttEngine = sttEngine === 'whisper' ? 'browser' : 'whisper';
+  store.set('jarvis_stt', sttEngine); renderSttToggle();
+};
+
+function toggleMic() {
+  if (flags.listening) return stopListening(false);   // stop early and send what was heard
+  if (busy) return;
+  stopSpeaking();
+  if (sttEngine === 'whisper') {
+    if (!canRecord) return toast('Audio recording is not supported in this browser.');
+    startWhisper();
+  } else {
+    if (!SR) return toast('Browser speech recognition needs Chrome or Edge. Switch to "Local Whisper".');
+    startBrowserSTT();
+  }
+}
+
+async function postAudio(blob, ext) {
+  const fd = new FormData(); fd.append('audio', blob, 'clip.' + ext);
+  return (await api('/transcribe', { method: 'POST', body: fd })).text || '';
+}
+
+async function startWhisper() {
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+  catch { return toast('Microphone permission denied.'); }
+
+  const mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'].find(t => MediaRecorder.isTypeSupported(t)) || '';
+  const mr = new MediaRecorder(stream, mime ? { mimeType: mime } : {});
+  const ext = mr.mimeType.includes('ogg') ? 'ogg' : mr.mimeType.includes('mp4') ? 'mp4' : 'webm';
+  const chunks = [];
+  let recording = true, cancelled = false, heard = false, liveBusy = false, raf = 0;
+  const started = performance.now(); let lastVoice = started;
+  mr.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
+
+  // Level meter + silence detection (also drives the orb)
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const an = ctx.createAnalyser(); an.fftSize = 1024;
+  ctx.createMediaStreamSource(stream).connect(an);
+  const buf = new Float32Array(an.fftSize), calib = [];
+  let floor = 0.01;
+  const tick = () => {
+    an.getFloatTimeDomainData(buf);
+    let sum = 0; for (const v of buf) sum += v * v;
+    const rms = Math.sqrt(sum / buf.length), t = performance.now();
+    if (t - started < 350) { calib.push(rms); floor = calib.reduce((a, b) => a + b, 0) / calib.length; }
+    if (rms > Math.max(floor * 2.5, 0.015)) { heard = true; lastVoice = t; }
+    document.documentElement.style.setProperty('--level', Math.min(1, rms * 8).toFixed(3));
+    if ((heard && t - lastVoice > SILENCE_MS) || (!heard && t - started > 8000) || t - started > MAX_RECORD_MS) return finish(false);
+    raf = requestAnimationFrame(tick);
+  };
+
+  // Live preview: re-transcribe the audio-so-far every ~1.5s
+  const live = setInterval(async () => {
+    if (!recording || liveBusy || !heard || !chunks.length) return;
+    liveBusy = true;
+    try { const txt = await postAudio(new Blob(chunks, { type: mr.mimeType }), ext); if (recording && txt) { input.value = txt; autosize(); } }
+    catch {} finally { liveBusy = false; }
+  }, 1500);
+
+  function finish(cancel) {
+    if (!recording) return;
+    recording = false; cancelled = cancel;
+    cancelAnimationFrame(raf); clearInterval(live);
+    if (mr.state !== 'inactive') mr.stop();
+  }
+  stopListening = finish;
+
+  mr.onstop = async () => {
+    stream.getTracks().forEach(t => t.stop()); ctx.close().catch(() => {});
+    setFlag('listening', false); setMicUI(false);
+    if (cancelled || !heard) { input.placeholder = PLACEHOLDER; if (cancelled) input.value = ''; return; }
+    input.placeholder = 'Transcribing…'; setFlag('thinking', true);
+    try {
+      const text = (await postAudio(new Blob(chunks, { type: mr.mimeType }), ext)).trim();
+      setFlag('thinking', false); input.placeholder = PLACEHOLDER;
+      if (text) send(text); else { input.value = ''; toast("Sorry, I didn't catch that."); }
+    } catch (e) { setFlag('thinking', false); input.placeholder = PLACEHOLDER; toast(e.message); }
+  };
+
+  mr.start(250);
+  input.value = ''; input.placeholder = 'Listening… (speak, then pause)';
+  setFlag('listening', true); setMicUI(true);
+  tick();
+}
+function setMicUI(on) {
+  const b = $('#micBtn');
+  b.className = 'shrink-0 w-10 h-10 grid place-items-center rounded-xl transition ' +
+    (on ? 'bg-rose-500/20 text-rose-300 ring-1 ring-rose-400/60 animate-pulse' : 'text-slate-300 hover:text-arc-300 hover:bg-arc-400/10');
+  b.innerHTML = `<i data-lucide="${on ? 'mic-off' : 'mic'}" class="w-5 h-5"></i>`; icons();
+}
+function startBrowserSTT() {
+  rec = new SR();
+  stopListening = cancel => { if (cancel) { input.value = ''; rec.abort(); } else rec.stop(); };
+  rec.lang = 'en-US'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+  let finalText = '', hadError = false;
+  rec.onstart = () => { setFlag('listening', true); setMicUI(true); input.value = ''; input.placeholder = 'Listening…'; };
+  rec.onresult = e => {
+    let interim = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) finalText += t; else interim += t;
+    }
+    input.value = (finalText + interim).trim(); autosize();
+  };
+  rec.onerror = e => {
+    hadError = true;
+    if (e.error === 'not-allowed') toast('Microphone permission denied.');
+    else if (e.error === 'network') toast('Speech service unreachable (browser speech recognition needs internet).');
+    else if (e.error !== 'no-speech' && e.error !== 'aborted') toast('Mic error: ' + e.error);
+  };
+  rec.onend = () => {
+    setFlag('listening', false); setMicUI(false); input.placeholder = PLACEHOLDER;
+    const said = input.value.trim();
+    if (said && (!hadError || finalText)) send(said);   // auto-submit when you stop talking
+  };
+  try { rec.start(); } catch (e) { toast(e.message); }
+}
+$('#micBtn').onclick = toggleMic;
+$('#orb').onclick = toggleMic;
+renderSttToggle();
+
+// ---------------------------------------------------------------- Voice output (TTS)
+const synth = window.speechSynthesis;
+let ttsOn = store.get('jarvis_tts', false);
+let voice = null, speakToken = 0, levelTimer = null;
+const VOICE_PREFS = ['Microsoft Ryan Online', 'Google UK English Male', 'Microsoft Guy Online', 'Microsoft Christopher Online',
+  'Microsoft George', 'Daniel', 'Microsoft Andrew Online', 'Microsoft Brian Online', 'Arthur', 'Microsoft David', 'Alex', 'Aaron'];
+function pickVoice() {
+  if (!synth) return;
+  const vs = synth.getVoices(); if (!vs.length) return;
+  voice = null;
+  for (const p of VOICE_PREFS) { voice = vs.find(v => v.name.includes(p)); if (voice) break; }
+  voice ||= vs.find(v => v.lang === 'en-GB') || vs.find(v => v.lang?.startsWith('en')) || vs[0];
+  $('#voiceName').textContent = voice ? '♪ ' + voice.name.replace(/^Microsoft /, '').replace(/ - .*$/, '') : '';
+}
+if (synth) { pickVoice(); synth.onvoiceschanged = pickVoice; }
+
+function renderTtsToggle() {
+  const b = $('#ttsToggle');
+  b.className = 'flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition ' +
+    (ttsOn ? 'border-arc-400/50 text-arc-300 bg-arc-400/10' : 'border-slate-600/50 text-slate-400 hover:text-slate-200');
+  b.innerHTML = `<i data-lucide="${ttsOn ? 'volume-2' : 'volume-x'}" class="w-3.5 h-3.5"></i><span>Voice Output (TTS): ${ttsOn ? 'On' : 'Off'}</span>`;
+  icons();
+}
+$('#ttsToggle').onclick = () => {
+  if (!synth) return toast('Speech synthesis is not supported in this browser.');
+  ttsOn = !ttsOn; store.set('jarvis_tts', ttsOn); renderTtsToggle();
+  if (!ttsOn) stopSpeaking();
+};
+renderTtsToggle();
+
+function plain(md) {
+  return md.replace(/```[\s\S]*?```/g, ' (code omitted) ').replace(/`([^`]+)`/g, '$1')
+    .replace(/!\[[^\]]*]\([^)]*\)/g, '').replace(/\[([^\]]+)]\([^)]*\)/g, '$1')
+    .replace(/[*_#>~|]+/g, ' ').replace(/^\s*[-+]\s+/gm, '').replace(/\s+/g, ' ').trim();
+}
+
+function setSpeaking(on) {
+  setFlag('speaking', on);
+  $('#stopSpeaking').classList.toggle('hidden', !on);
+  $('#stopSpeaking').classList.toggle('inline-flex', on);
+  clearInterval(levelTimer);
+  if (on) {   // gentle organic flicker; word boundaries add bigger kicks
+    levelTimer = setInterval(() => {
+      const cur = +getComputedStyle(document.documentElement).getPropertyValue('--level') || 0;
+      document.documentElement.style.setProperty('--level', Math.max(0, cur * 0.75 + Math.random() * 0.12).toFixed(3));
+    }, 90);
+  }
+}
+
+function speak(text, force = false) {
+  if (!synth || (!ttsOn && !force)) return;
+  stopSpeaking();
+  const token = ++speakToken;
+  const sentences = plain(text).match(/[^.!?;:]+[.!?;:]*\s*|.+$/g)?.map(s => s.trim()).filter(Boolean) || [];
+  if (!sentences.length) return;
+  // Chrome stops long utterances after ~15s, so queue sentence-sized pieces.
+  sentences.forEach((s, i) => {
+    const u = new SpeechSynthesisUtterance(s);
+    if (voice) u.voice = voice;
+    u.lang = voice?.lang || 'en-GB'; u.rate = 1.02; u.pitch = 0.85; u.volume = 1;
+    u.onstart = () => { if (token === speakToken) setSpeaking(true); };
+    u.onboundary = () => { if (token === speakToken) document.documentElement.style.setProperty('--level', (0.6 + Math.random() * 0.4).toFixed(2)); };
+    u.onend = u.onerror = () => { if (token === speakToken && i === sentences.length - 1) setSpeaking(false); };
+    synth.speak(u);
+  });
+}
+function stopSpeaking() {
+  speakToken++;
+  if (synth && (synth.speaking || synth.pending)) synth.cancel();
+  setSpeaking(false);
+}
+$('#stopSpeaking').onclick = stopSpeaking;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { stopSpeaking(); if (flags.listening) stopListening(true); } });
+
+// ---------------------------------------------------------------- Sidebar (mobile)
+function openSidebar() { $('#sidebar').classList.remove('-translate-x-full'); $('#scrim').classList.remove('hidden'); }
+function closeSidebar() { $('#sidebar').classList.add('-translate-x-full'); $('#scrim').classList.add('hidden'); }
+$('#openSidebar').onclick = openSidebar; $('#closeSidebar').onclick = closeSidebar; $('#scrim').onclick = closeSidebar;
+
+// ---------------------------------------------------------------- Boot
+icons(); updateOrb();
+loadStatus(); loadDocs(); loadHistory();
+setInterval(loadStatus, 20000);
+</script>
+</body>
+</html>
